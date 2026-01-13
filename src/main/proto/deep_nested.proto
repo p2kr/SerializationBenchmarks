@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package org.example.proto;
+
+option java_package = "org.example.proto";
+option java_outer_classname = "DeepNestedProto";
+
+message DeepNested {
+  string data = 1;
+  bytes blob = 2;
+}
