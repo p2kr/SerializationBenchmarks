@@ -1,0 +1,316 @@
+name: Run Benchmarks and Update README
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+  schedule:
+    # Run weekly on Sunday at 00:00 UTC
+    - cron: '0 0 * * 0'
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Set up Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+        cache: 'maven'
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install Node.js dependencies
+      run: npm install
+
+    - name: Run Java Benchmarks
+      run: |
+        mvn clean test -Dtest=SerializationTest 2>&1 | tee java-benchmark-output.txt
+
+    - name: Run JavaScript Benchmarks
+      run: |
+        node --expose-gc js/benchmark.js 2>&1 | tee js-benchmark-output.txt
+
+    - name: Extract Benchmark Results
+      id: extract-results
+      run: |
+        # Create a script to parse and format benchmark results
+        cat > parse-benchmarks.js << 'EOF'
+        const fs = require('fs');
+        
+        function parseJavaBenchmarks(content) {
+          const lines = content.split('\n');
+          let results = {
+            withNulls: [],
+            withoutNulls: [],
+            totalWithNulls: [],
+            totalWithoutNulls: []
+          };
+          
+          let currentSection = null;
+          let captureData = false;
+          let captureTotals = false;
+          
+          for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            
+            if (line.includes('Serialization Benchmark - WITH NULLS')) {
+              currentSection = 'withNulls';
+              captureData = false;
+              captureTotals = false;
+            } else if (line.includes('Serialization Benchmark - WITHOUT NULLS')) {
+              currentSection = 'withoutNulls';
+              captureData = false;
+              captureTotals = false;
+            } else if (line.includes('│ Serializer') && line.includes('Avg Time')) {
+              captureData = true;
+              captureTotals = false;
+            } else if (line.includes('TOTAL SERIALIZATION TIME')) {
+              captureData = false;
+              captureTotals = true;
+            } else if (captureData && line.includes('│') && !line.includes('─')) {
+              const match = line.match(/│\s*(\S+)\s*│\s*([\d.]+)\s*│\s*([\+\-]?[\d.]+%)\s*│\s*([\d,]+)\s*│\s*([\+\-]?[\d.]+%)\s*│/);
+              if (match && currentSection) {
+                results[currentSection].push({
+                  name: match[1],
+                  avgTime: match[2],
+                  timeDiff: match[3],
+                  size: match[4],
+                  sizeDiff: match[5]
+                });
+              }
+            } else if (captureTotals && line.includes('│') && !line.includes('─')) {
+              const match = line.match(/│\s*(\S+)\s*│\s*([\d.]+)\s*│\s*(\S+)/);
+              if (match && currentSection) {
+                const totalKey = currentSection === 'withNulls' ? 'totalWithNulls' : 'totalWithoutNulls';
+                results[totalKey].push({
+                  name: match[1],
+                  totalTime: match[2],
+                  config: match[3]
+                });
+              }
+            }
+          }
+          
+          return results;
+        }
+        
+        function parseJSBenchmarks(content) {
+          const lines = content.split('\n');
+          let results = {
+            serialization: [],
+            deserialization: [],
+            totals: []
+          };
+          
+          let currentSection = null;
+          let captureData = false;
+          let captureTotals = false;
+          
+          for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            
+            if (line.includes('SERIALIZATION Benchmark')) {
+              currentSection = 'serialization';
+              captureData = false;
+              captureTotals = false;
+            } else if (line.includes('DESERIALIZATION Benchmark')) {
+              currentSection = 'deserialization';
+              captureData = false;
+              captureTotals = false;
+            } else if (line.includes('TOTAL TIME SUMMARY')) {
+              currentSection = null;
+              captureData = false;
+              captureTotals = true;
+            } else if (line.includes('│ Library') && line.includes('Avg Time') && currentSection) {
+              captureData = true;
+              captureTotals = false;
+            } else if (line.includes('│ Library') && line.includes('Serialization Total')) {
+              captureData = false;
+              captureTotals = true;
+            } else if (captureData && line.includes('│') && !line.includes('─') && currentSection) {
+              const match = line.match(/│\s*(\S+)\s*│\s*([\d.]+)\s*│\s*([\+\-]?[\d.]+%)\s*│\s*([\d,]+)\s*│\s*([\+\-]?[\d.]+%)\s*│/);
+              if (match) {
+                results[currentSection].push({
+                  name: match[1],
+                  avgTime: match[2],
+                  timeDiff: match[3],
+                  size: match[4],
+                  sizeDiff: match[5]
+                });
+              }
+            } else if (captureTotals && line.includes('│') && !line.includes('─')) {
+              const match = line.match(/│\s*(\S+)\s*│\s*([\d.]+)\s*│\s*([\d.]+)\s*│/);
+              if (match) {
+                results.totals.push({
+                  name: match[1],
+                  serTotal: match[2],
+                  deserTotal: match[3]
+                });
+              }
+            }
+          }
+          
+          return results;
+        }
+        
+        const javaContent = fs.readFileSync('java-benchmark-output.txt', 'utf8');
+        const jsContent = fs.readFileSync('js-benchmark-output.txt', 'utf8');
+        
+        const javaResults = parseJavaBenchmarks(javaContent);
+        const jsResults = parseJSBenchmarks(jsContent);
+        
+        const output = {
+          java: javaResults,
+          js: jsResults,
+          timestamp: new Date().toISOString()
+        };
+        
+        fs.writeFileSync('benchmark-results.json', JSON.stringify(output, null, 2));
+        console.log('Benchmark results extracted successfully');
+        EOF
+        
+        node parse-benchmarks.js
+
+    - name: Update README with Benchmark Results
+      run: |
+        cat > update-readme.js << 'EOF'
+        const fs = require('fs');
+        
+        const results = JSON.parse(fs.readFileSync('benchmark-results.json', 'utf8'));
+        let readme = fs.readFileSync('README.md', 'utf8');
+        
+        // Generate Java benchmark tables
+        let javaBenchmarkMd = '## 📊 Latest Benchmark Results\n\n';
+        javaBenchmarkMd += `> Last updated: ${new Date(results.timestamp).toLocaleString('en-US', { 
+          year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short'
+        })}\n\n`;
+        
+        javaBenchmarkMd += '### Java Serialization Benchmarks\n\n';
+        
+        // With Nulls
+        javaBenchmarkMd += '#### WITH NULL FIELDS\n\n';
+        javaBenchmarkMd += '| Serializer | Avg Time (ms) | % Diff | Size (bytes) | % Diff |\n';
+        javaBenchmarkMd += '|------------|---------------|--------|--------------|--------|\n';
+        results.java.withNulls.forEach(row => {
+          javaBenchmarkMd += `| ${row.name} | ${row.avgTime} | ${row.timeDiff} | ${row.size} | ${row.sizeDiff} |\n`;
+        });
+        
+        if (results.java.totalWithNulls.length > 0) {
+          javaBenchmarkMd += '\n**Total Serialization Time:**\n\n';
+          javaBenchmarkMd += '| Serializer | Total Time (ms) | Config |\n';
+          javaBenchmarkMd += '|------------|-----------------|--------|\n';
+          results.java.totalWithNulls.forEach(row => {
+            javaBenchmarkMd += `| ${row.name} | ${row.totalTime} | ${row.config} |\n`;
+          });
+        }
+        
+        // Without Nulls
+        javaBenchmarkMd += '\n#### WITHOUT NULL FIELDS\n\n';
+        javaBenchmarkMd += '| Serializer | Avg Time (ms) | % Diff | Size (bytes) | % Diff |\n';
+        javaBenchmarkMd += '|------------|---------------|--------|--------------|--------|\n';
+        results.java.withoutNulls.forEach(row => {
+          javaBenchmarkMd += `| ${row.name} | ${row.avgTime} | ${row.timeDiff} | ${row.size} | ${row.sizeDiff} |\n`;
+        });
+        
+        if (results.java.totalWithoutNulls.length > 0) {
+          javaBenchmarkMd += '\n**Total Serialization Time:**\n\n';
+          javaBenchmarkMd += '| Serializer | Total Time (ms) | Config |\n';
+          javaBenchmarkMd += '|------------|-----------------|--------|\n';
+          results.java.totalWithoutNulls.forEach(row => {
+            javaBenchmarkMd += `| ${row.name} | ${row.totalTime} | ${row.config} |\n`;
+          });
+        }
+        
+        // JS Benchmarks
+        javaBenchmarkMd += '\n### JavaScript Benchmarks\n\n';
+        
+        // Serialization
+        if (results.js.serialization.length > 0) {
+          javaBenchmarkMd += '#### SERIALIZATION\n\n';
+          javaBenchmarkMd += '| Library | Avg Time (ms) | % Diff | Size (bytes) | % Diff |\n';
+          javaBenchmarkMd += '|---------|---------------|--------|--------------|--------|\n';
+          results.js.serialization.forEach(row => {
+            javaBenchmarkMd += `| ${row.name} | ${row.avgTime} | ${row.timeDiff} | ${row.size} | ${row.sizeDiff} |\n`;
+          });
+        }
+        
+        // Deserialization
+        if (results.js.deserialization.length > 0) {
+          javaBenchmarkMd += '\n#### DESERIALIZATION\n\n';
+          javaBenchmarkMd += '| Library | Avg Time (ms) | % Diff | Size (bytes) | % Diff |\n';
+          javaBenchmarkMd += '|---------|---------------|--------|--------------|--------|\n';
+          results.js.deserialization.forEach(row => {
+            javaBenchmarkMd += `| ${row.name} | ${row.avgTime} | ${row.timeDiff} | ${row.size} | ${row.sizeDiff} |\n`;
+          });
+        }
+        
+        // Totals
+        if (results.js.totals.length > 0) {
+          javaBenchmarkMd += '\n**Total Times:**\n\n';
+          javaBenchmarkMd += '| Library | Serialization Total (ms) | Deserialization Total (ms) |\n';
+          javaBenchmarkMd += '|---------|--------------------------|---------------------------|\n';
+          results.js.totals.forEach(row => {
+            javaBenchmarkMd += `| ${row.name} | ${row.serTotal} | ${row.deserTotal} |\n`;
+          });
+        }
+        
+        javaBenchmarkMd += '\n---\n\n';
+        
+        // Replace benchmark section in README
+        const benchmarkStartMarker = '<!-- BENCHMARK_RESULTS_START -->';
+        const benchmarkEndMarker = '<!-- BENCHMARK_RESULTS_END -->';
+        
+        if (readme.includes(benchmarkStartMarker) && readme.includes(benchmarkEndMarker)) {
+          const before = readme.substring(0, readme.indexOf(benchmarkStartMarker) + benchmarkStartMarker.length);
+          const after = readme.substring(readme.indexOf(benchmarkEndMarker));
+          readme = before + '\n' + javaBenchmarkMd + after;
+        } else {
+          // Insert before Features section if markers don't exist
+          const featuresIndex = readme.indexOf('## Features');
+          if (featuresIndex !== -1) {
+            readme = readme.substring(0, featuresIndex) + 
+                     benchmarkStartMarker + '\n' + javaBenchmarkMd + benchmarkEndMarker + '\n\n' +
+                     readme.substring(featuresIndex);
+          } else {
+            // Append at the end if Features section doesn't exist
+            readme += '\n\n' + benchmarkStartMarker + '\n' + javaBenchmarkMd + benchmarkEndMarker + '\n';
+          }
+        }
+        
+        fs.writeFileSync('README.md', readme);
+        console.log('README updated successfully');
+        EOF
+        
+        node update-readme.js
+
+    - name: Commit and Push Changes
+      run: |
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        git add README.md
+        git diff --staged --quiet || git commit -m "chore: update benchmark results [skip ci]"
+        git push
+      continue-on-error: true
+
+    - name: Upload Benchmark Results
+      uses: actions/upload-artifact@v4
+      with:
+        name: benchmark-results
+        path: |
+          benchmark-results.json
+          java-benchmark-output.txt
+          js-benchmark-output.txt

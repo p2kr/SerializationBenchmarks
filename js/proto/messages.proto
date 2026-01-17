@@ -1,0 +1,188 @@
+syntax = "proto3";
+
+package org.example.proto;
+
+message DeepNested {
+  string data = 1;
+  bytes blob = 2;
+}
+
+message Nested {
+  string field1 = 1;
+  string field2 = 2;
+  string field3 = 3;
+  string field4 = 4;
+  string field5 = 5;
+  int64 longField1 = 6;
+  int32 intField1 = 7;
+  double doubleField1 = 8;
+  DeepNested deepNested = 9;
+}
+
+message LargePojo {
+  Nested ref1 = 1;
+  Nested ref2 = 2;
+  Nested ref3 = 3;
+  Nested ref4 = 4;
+  Nested ref5 = 5;
+  Nested ref6 = 6;
+  Nested ref7 = 7;
+  Nested ref8 = 8;
+  Nested ref9 = 9;
+  Nested ref10 = 10;
+  Nested ref11 = 11;
+  Nested ref12 = 12;
+  Nested ref13 = 13;
+  Nested ref14 = 14;
+  Nested ref15 = 15;
+  Nested ref16 = 16;
+  Nested ref17 = 17;
+  Nested ref18 = 18;
+  Nested ref19 = 19;
+  Nested ref20 = 20;
+
+  int32 field21 = 21;
+  int32 field22 = 22;
+  int32 field23 = 23;
+  int32 field24 = 24;
+  int32 field25 = 25;
+  int32 field26 = 26;
+  int32 field27 = 27;
+  int32 field28 = 28;
+  int32 field29 = 29;
+  int32 field30 = 30;
+
+  int64 field31 = 31;
+  int64 field32 = 32;
+  int64 field33 = 33;
+  int64 field34 = 34;
+  int64 field35 = 35;
+  int64 field36 = 36;
+  int64 field37 = 37;
+  int64 field38 = 38;
+  int64 field39 = 39;
+  int64 field40 = 40;
+
+  double field41 = 41;
+  double field42 = 42;
+  double field43 = 43;
+  double field44 = 44;
+  double field45 = 45;
+  double field46 = 46;
+  double field47 = 47;
+  double field48 = 48;
+  double field49 = 49;
+  double field50 = 50;
+
+  bool field51 = 51;
+  bool field52 = 52;
+  bool field53 = 53;
+  bool field54 = 54;
+  bool field55 = 55;
+  bool field56 = 56;
+  bool field57 = 57;
+  bool field58 = 58;
+  bool field59 = 59;
+  bool field60 = 60;
+
+  float field61 = 61;
+  float field62 = 62;
+  float field63 = 63;
+  float field64 = 64;
+  float field65 = 65;
+  float field66 = 66;
+  float field67 = 67;
+  float field68 = 68;
+  float field69 = 69;
+  float field70 = 70;
+
+  int32 field71 = 71;
+  int32 field72 = 72;
+  int32 field73 = 73;
+  int32 field74 = 74;
+  int32 field75 = 75;
+  int32 field76 = 76;
+  int32 field77 = 77;
+  int32 field78 = 78;
+  int32 field79 = 79;
+  int32 field80 = 80;
+
+  int32 field81 = 81;
+  int32 field82 = 82;
+  int32 field83 = 83;
+  int32 field84 = 84;
+  int32 field85 = 85;
+  int32 field86 = 86;
+  int32 field87 = 87;
+  int32 field88 = 88;
+  int32 field89 = 89;
+  int32 field90 = 90;
+
+  int32 field91 = 91;
+  int32 field92 = 92;
+  int32 field93 = 93;
+  int32 field94 = 94;
+  int32 field95 = 95;
+  int32 field96 = 96;
+  int32 field97 = 97;
+  int32 field98 = 98;
+  int32 field99 = 99;
+  int32 field100 = 100;
+
+  int32 field101 = 101;
+  int32 field102 = 102;
+  int32 field103 = 103;
+  int32 field104 = 104;
+  int32 field105 = 105;
+  int64 field106 = 106;
+  int64 field107 = 107;
+  int64 field108 = 108;
+  double field109 = 109;
+  double field110 = 110;
+  bool field111 = 111;
+  bool field112 = 112;
+
+  repeated string field113 = 113;
+  repeated int32 field114 = 114;
+  map<string, string> field115 = 115;
+
+  string field116 = 116;
+  string field117 = 117;
+  string field118 = 118;
+  string field119 = 119;
+  string field120 = 120;
+  string field121 = 121;
+  string field122 = 122;
+  string field123 = 123;
+  string field124 = 124;
+  string field125 = 125;
+  string field126 = 126;
+  string field127 = 127;
+  string field128 = 128;
+  string field129 = 129;
+  string field130 = 130;
+  string field131 = 131;
+  string field132 = 132;
+  string field133 = 133;
+  string field134 = 134;
+  string field135 = 135;
+  string field136 = 136;
+  string field137 = 137;
+  string field138 = 138;
+  string field139 = 139;
+  string field140 = 140;
+  string field141 = 141;
+  string field142 = 142;
+  string field143 = 143;
+  string field144 = 144;
+  string field145 = 145;
+  string field146 = 146;
+  string field147 = 147;
+  string field148 = 148;
+  string field149 = 149;
+  string field150 = 150;
+}
+
+message LargePojoList {
+  repeated LargePojo items = 1;
+}

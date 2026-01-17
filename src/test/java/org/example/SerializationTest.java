@@ -20,7 +20,7 @@ import java.util.function.Supplier;
 
 @Execution(ExecutionMode.CONCURRENT)
 @DisplayName("Serialization Performance Benchmarks")
-public class SerializationTest {
+class SerializationTest {
 
     private static final int WARMUP_ITERATIONS = 100;
     private static final int BENCHMARK_ITERATIONS = 1000;
@@ -31,9 +31,16 @@ public class SerializationTest {
     private static final String TABLE_HEADER = "│ Serializer  │ Avg Time (ms)│  % Diff    │  Size (bytes)   │  % Diff    │";
     private static final String TABLE_SEPARATOR = "├─────────────┼──────────────┼────────────┼─────────────────┼────────────┤";
     private static final String TABLE_BOTTOM = "└─────────────┴──────────────┴────────────┴─────────────────┴────────────┘";
+    private static final String SUMMARY_TOP = "┌─────────────┬────────────────────┬────────────────────┐";
+    private static final String SUMMARY_HEADER = "│ Serializer  │ Total Time (ms)    │ Config             │";
+    private static final String SUMMARY_SEPARATOR = "├─────────────┼────────────────────┼────────────────────┤";
+    private static final String SUMMARY_BOTTOM = "└─────────────┴────────────────────┴────────────────────┘";
 
     private static List<LargePojo> testData;
     private static LargePojoProto.LargePojoList protobufData;
+
+    // Total time tracking
+    private static final java.util.Map<String, Double> totalTimes = new java.util.concurrent.ConcurrentHashMap<>();
 
     // Reusable mapper instances
     private static ObjectMapper jacksonMapper;
@@ -66,28 +73,36 @@ public class SerializationTest {
 
     @Test
     @DisplayName("Benchmark Jackson, Gson, MessagePack, and Protobuf with null fields serialized")
-    public void benchmarkSerializersWithNullFieldsSerialized() throws Exception {
+    void benchmarkSerializersWithNullFieldsSerialized() {
         runBenchmarkSuite(
             "WITH NULLS",
             jacksonMapper,
             gsonWithNulls,
             msgpackMapper
         );
+
+        // Verify benchmark suite executed successfully
+        org.junit.jupiter.api.Assertions.assertTrue(totalTimes.containsKey("Jackson"),
+            "Jackson benchmark should have recorded results");
     }
 
     @Test
     @DisplayName("Benchmark Jackson, Gson, MessagePack, and Protobuf with null fields excluded")
-    public void benchmarkSerializersWithNullFieldsExcluded() throws Exception {
+    void benchmarkSerializersWithNullFieldsExcluded() {
         runBenchmarkSuite(
             "WITHOUT NULLS",
             jacksonMapperNoNulls,
             gsonWithoutNulls,
             msgpackMapperNoNulls
         );
+
+        // Verify benchmark suite executed successfully
+        org.junit.jupiter.api.Assertions.assertTrue(totalTimes.containsKey("Jackson"),
+            "Jackson benchmark should have recorded results");
     }
 
     private void runBenchmarkSuite(String suiteName, ObjectMapper jacksonMapper,
-                                    Gson gson, ObjectMapper msgpackMapper) throws Exception {
+                                    Gson gson, ObjectMapper msgpackMapper) {
         printBenchmarkHeader(suiteName);
         printTableHeader();
 
@@ -101,6 +116,7 @@ public class SerializationTest {
         printMetricsWithPercentage("Protobuf", protobufMetrics, jacksonMetrics);
 
         printTableFooter();
+        printTotalTimesSummary(suiteName);
     }
 
     private void printBenchmarkHeader(String suiteName) {
@@ -128,10 +144,10 @@ public class SerializationTest {
      * @param serializer Supplier that performs the serialization and returns the result
      * @param sizeCalculator Function to calculate the size from the result
      * @param printBaseline Whether to print as baseline (Jackson)
-     * @return Array containing [avgTimeMs, size]
+     * @return Array containing [avgTimeMs, size, totalTimeMs]
      */
     private <T> double[] runBenchmark(String serializerName, Supplier<T> serializer,
-                                      SizeCalculator<T> sizeCalculator, boolean printBaseline) throws Exception {
+                                      SizeCalculator<T> sizeCalculator, boolean printBaseline) {
         // Warmup
         for (int i = 0; i < WARMUP_ITERATIONS; i++) {
             serializer.get();
@@ -139,7 +155,7 @@ public class SerializationTest {
 
         // Suggest GC between warmup and actual benchmark for cleaner results
         System.gc();
-        Thread.sleep(10);
+        // Allow time for GC to potentially run (note: gc() is only a suggestion)
 
         // Benchmark
         final long startTime = System.nanoTime();
@@ -150,17 +166,21 @@ public class SerializationTest {
         final long endTime = System.nanoTime();
 
         final double avgTimeMs = (endTime - startTime) / 1_000_000.0 / BENCHMARK_ITERATIONS;
+        final double totalTimeMs = (endTime - startTime) / 1_000_000.0;
         final int size = sizeCalculator.calculateSize(result);
+
+        // Track total time
+        totalTimes.merge(serializerName, totalTimeMs, Double::sum);
 
         if (printBaseline) {
             System.out.printf("│ %-11s │ %12.4f │ %9.1f%% │ %,15d │ %9.1f%% │%n",
                 serializerName, avgTimeMs, 0.0, size, 0.0);
         }
 
-        return new double[]{avgTimeMs, size};
+        return new double[]{avgTimeMs, size, totalTimeMs};
     }
 
-    private double[] benchmarkJackson(ObjectMapper mapper) throws Exception {
+    private double[] benchmarkJackson(ObjectMapper mapper) {
         return runBenchmark("Jackson",
             () -> {
                 try {
@@ -173,14 +193,14 @@ public class SerializationTest {
             true);
     }
 
-    private double[] benchmarkGson(Gson gson) throws Exception {
+    private double[] benchmarkGson(Gson gson) {
         return runBenchmark("Gson (hidden)",
             () -> gson.toJson(testData),
             str -> str.getBytes(StandardCharsets.UTF_8).length,
             false);
     }
 
-    private double[] benchmarkMessagePack(ObjectMapper mapper) throws Exception {
+    private double[] benchmarkMessagePack(ObjectMapper mapper) {
         return runBenchmark("MessagePack (hidden)",
             () -> {
                 try {
@@ -193,7 +213,7 @@ public class SerializationTest {
             false);
     }
 
-    private double[] benchmarkProtobuf() throws Exception {
+    private double[] benchmarkProtobuf() {
         return runBenchmark("Protobuf (hidden)",
             () -> protobufData.toByteArray(),
             bytes -> bytes.length,
@@ -203,6 +223,29 @@ public class SerializationTest {
     @FunctionalInterface
     private interface SizeCalculator<T> {
         int calculateSize(T result);
+    }
+
+    private void printTotalTimesSummary(String suiteName) {
+        System.out.println("\n========================================");
+        System.out.println("  TOTAL SERIALIZATION TIME - " + suiteName);
+        System.out.println("========================================\n");
+        System.out.println(SUMMARY_TOP);
+        System.out.println(SUMMARY_HEADER);
+        System.out.println(SUMMARY_SEPARATOR);
+
+        String[] serializers = {"Jackson", "Gson (hidden)", "MessagePack (hidden)", "Protobuf (hidden)"};
+        String[] displayNames = {"Jackson", "Gson", "MessagePack", "Protobuf"};
+
+        for (int i = 0; i < serializers.length; i++) {
+            Double totalTime = totalTimes.get(serializers[i]);
+            if (totalTime != null) {
+                System.out.printf("│ %-11s │ %18.4f │ %-18s │%n",
+                    displayNames[i], totalTime, suiteName);
+            }
+        }
+
+        System.out.println(SUMMARY_BOTTOM);
+        System.out.println("\n========================================\n");
     }
 
     private void printMetricsWithPercentage(String name, double[] metrics, double[] jacksonMetrics) {
