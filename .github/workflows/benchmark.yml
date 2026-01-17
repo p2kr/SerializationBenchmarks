@@ -49,7 +49,7 @@ jobs:
       run: |
         # Create a script to parse and format benchmark results
         cat > parse-benchmarks.js << 'EOF'
-        const fs = require('fs');
+        import fs from 'fs';
         
         function parseJavaBenchmarks(content) {
           const lines = content.split('\n');
@@ -188,7 +188,7 @@ jobs:
     - name: Update README with Benchmark Results
       run: |
         cat > update-readme.js << 'EOF'
-        const fs = require('fs');
+        import fs from 'fs';
         
         const results = JSON.parse(fs.readFileSync('benchmark-results.json', 'utf8'));
         let readme = fs.readFileSync('README.md', 'utf8');
