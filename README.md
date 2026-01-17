@@ -1,12 +1,31 @@
 # Serialization Benchmarks
 
-A comprehensive Java benchmarking suite that compares the performance and size characteristics of popular serialization libraries: Jackson (JSON), Gson (JSON), MessagePack, and Protocol Buffers (Protobuf).
+A comprehensive benchmarking suite that compares the performance and size characteristics of popular serialization libraries across multiple languages:
+- **Java**: Serialization benchmarks for Jackson (JSON), Gson (JSON), MessagePack, and Protocol Buffers (Protobuf)
+- **JavaScript**: Serialization and deserialization benchmarks for JSON, MessagePack, and Protocol Buffers
 
 ## Overview
 
-This project provides empirical performance data for different serialization frameworks by testing them against complex data structures with varying characteristics. The benchmarks measure both serialization speed and output size, making it easier to choose the right serialization strategy for your use case.
+This project provides empirical performance data for different serialization frameworks by testing them against complex data structures with varying characteristics. The benchmarks measure both serialization and deserialization performance along with output size, making it easier to choose the right serialization strategy for your use case.
+
+### Language-Specific Focus
+
+- **Java** (in `src/`): Tests **serialization** performance - converting objects to bytes/strings
+- **JavaScript** (in `js/`): Tests **serialization and deserialization** performance - converting objects to bytes/strings and vice versa
+
+This dual approach reflects real-world use cases where backend services (Java) serialize data that frontend applications (JavaScript) deserialize.
+
+<!-- BENCHMARK_RESULTS_START -->
+## 📊 Latest Benchmark Results
+
+> Benchmark results will be automatically updated by GitHub Actions after each run.
+> To see the latest results, run the benchmarks manually or wait for the scheduled weekly run.
+
+<!-- BENCHMARK_RESULTS_END -->
 
 ## Features
+
+### Java Serialization Benchmarks
 
 - **Multiple Serializers Tested:**
   - Jackson (JSON)
@@ -26,16 +45,37 @@ This project provides empirical performance data for different serialization fra
   - Output size (bytes)
   - Percentage comparison against baseline (Jackson)
 
-- **Best Practices:**
-  - Warmup iterations to ensure JIT optimization
-  - Multiple benchmark iterations for accuracy
-  - Concurrent test execution support
-  - Formatted table output for easy comparison
+### JavaScript Serialization & Deserialization Benchmarks
+
+- **Multiple Libraries Tested:**
+  - JSON (native)
+  - MessagePack (msgpack5)
+  - Protocol Buffers (protobufjs)
+
+- **Performance Metrics:**
+  - Average serialization time (milliseconds)
+  - Average deserialization time (milliseconds)
+  - Total time summary for both operations
+  - Data size (bytes)
+  - Percentage comparison against baseline (JSON)
+
+### Best Practices (Both Languages)
+
+- Warmup iterations to ensure JIT/V8 optimization
+- Multiple benchmark iterations for accuracy
+- Concurrent test execution support (Java)
+- Formatted table output for easy comparison
+- GC hints between test phases
 
 ## Prerequisites
 
+### For Java Benchmarks
 - Java 17 or higher
 - Maven 3.6 or higher
+
+### For JavaScript Benchmarks
+- Node.js 14.0 or higher
+- npm or yarn
 
 ## Dependencies
 
@@ -52,7 +92,7 @@ The project uses the following libraries:
 
 ```
 SerializationBenchmarks/
-├── src/
+├── src/                                # Java benchmarks
 │   ├── main/
 │   │   ├── java/org/example/
 │   │   │   ├── LargePojo.java          # POJO with 150+ fields
@@ -69,8 +109,26 @@ SerializationBenchmarks/
 │           └── util/
 │               ├── ProtobufConverter.java  # Converter utilities
 │               └── TestDataFactory.java    # Test data generators
-├── pom.xml
-└── README.md
+├── js/                                 # JavaScript benchmarks
+│   ├── benchmark.js                    # Main benchmark suite
+│   ├── testDataFactory.js              # Test data generation
+│   ├── protobufConverter.js            # Protobuf conversion utilities
+│   ├── proto/                          # Protobuf schemas
+│   │   └── messages.proto
+│   └── README.md                       # JavaScript-specific docs
+├── docs/                               # Documentation
+│   ├── CROSS_VERIFICATION_REPORT.md    # Cross-language verification
+│   ├── JS_BENCHMARKS_SUMMARY.md        # JavaScript benchmark summary
+│   ├── PROTOBUF_ADDITION_SUMMARY.md    # Protobuf implementation details
+│   └── QUICK_REFERENCE.md              # Quick reference guide
+├── .github/
+│   └── workflows/
+│       └── benchmark.yml               # GitHub Actions workflow
+├── package.json                        # Node.js dependencies
+├── pom.xml                             # Maven configuration
+├── LICENSE.md                          # License information
+├── SECURITY.md                         # Security policy
+└── README.md                           # This file
 ```
 
 ### Package Structure
@@ -212,6 +270,65 @@ This runs the complete build lifecycle including tests.
 # Windows
 .\mvnw.cmd test "-DargLine=-Xms2G -Xmx2G -XX:+UseG1GC"
 ```
+
+## Running JavaScript Benchmarks
+
+### Install Dependencies
+
+First time setup:
+
+```bash
+npm install
+```
+
+Or with yarn:
+
+```bash
+yarn install
+```
+
+### Run Benchmarks
+
+Basic execution:
+
+```bash
+npm run benchmark
+```
+
+Or directly:
+
+```bash
+node js/benchmark.js
+```
+
+With GC control (recommended for more accurate results):
+
+```bash
+node --expose-gc js/benchmark.js
+```
+
+### Output Example
+
+```
+╔════════════════════════════════════════╗
+║  JavaScript Deserialization Benchmarks ║
+╔════════════════════════════════════════╗
+
+========================================
+  Deserialization Benchmark - DESERIALIZATION
+  (List of 20 LargePojo objects)
+========================================
+
+┌─────────────┬──────────────┬────────────┬─────────────────┬────────────┐
+│ Deserializer│ Avg Time (ms)│  % Diff    │  Size (bytes)   │  % Diff    │
+├─────────────┼──────────────┼────────────┼─────────────────┼────────────┤
+│ JSON.parse  │       1.0227 │      0.0%  │        185,219  │      0.0%  │
+│ MessagePack │       4.5923 │   +349.0%  │        125,421  │    -32.3%  │
+│ Protobuf    │       0.6576 │    -35.7%  │         71,586  │    -61.4%  │
+└─────────────┴──────────────┴────────────┴─────────────────┴────────────┘
+```
+
+For more details on JavaScript benchmarks, see [js/README.md](js/README.md).
 
 ## Understanding the Output
 
@@ -530,6 +647,74 @@ mvnw.cmd
 8. **Consider null handling** - Excluding nulls can significantly reduce size
 9. **Test realistic data** - Use data that matches your production scenarios
 
+## Continuous Integration
+
+### GitHub Actions Automation
+
+This project includes automated benchmark execution via GitHub Actions. The workflow:
+
+- **Automatically runs** on push to main/master branches
+- **Scheduled execution** weekly on Sundays at 00:00 UTC
+- **Manual trigger** available via workflow dispatch
+- **Updates README** with latest benchmark results automatically
+
+#### Workflow Configuration
+
+The workflow (`.github/workflows/benchmark.yml`) performs:
+
+1. Sets up Java 17 and Node.js 18 environments
+2. Installs all dependencies (Maven, npm)
+3. Runs Java benchmarks via Maven
+4. Runs JavaScript benchmarks with Node.js
+5. Parses benchmark output and extracts results
+6. Updates README.md with formatted benchmark tables
+7. Commits and pushes changes automatically
+8. Uploads artifacts for historical tracking
+
+#### Viewing Benchmark Results
+
+After each workflow run:
+- Check the README.md for updated benchmark tables
+- View artifacts in the Actions tab for raw output
+- Compare results across different runs
+
+#### Manual Workflow Trigger
+
+1. Go to the **Actions** tab in GitHub
+2. Select **Run Benchmarks and Update README**
+3. Click **Run workflow**
+4. Choose the branch and click **Run workflow**
+
+### Benchmark Result Format
+
+The README automatically displays:
+- **Java benchmarks**: WITH NULLS and WITHOUT NULLS configurations
+- **JavaScript benchmarks**: Serialization and Deserialization metrics
+- **Total times**: Aggregated performance metrics
+- **Timestamp**: When benchmarks were last executed
+
+## Documentation
+
+### Documentation Folder
+
+All detailed documentation is organized in the `docs/` folder:
+
+#### Available Documentation
+
+- **[CROSS_VERIFICATION_REPORT.md](docs/CROSS_VERIFICATION_REPORT.md)**: Cross-language benchmark verification and comparison
+- **[JS_BENCHMARKS_SUMMARY.md](docs/JS_BENCHMARKS_SUMMARY.md)**: Detailed JavaScript benchmark results and analysis
+- **[PROTOBUF_ADDITION_SUMMARY.md](docs/PROTOBUF_ADDITION_SUMMARY.md)**: Protocol Buffers implementation guide and insights
+- **[QUICK_REFERENCE.md](docs/QUICK_REFERENCE.md)**: Quick reference for common tasks and commands
+
+#### Documentation Purpose
+
+The documentation folder provides:
+- In-depth analysis of benchmark results
+- Implementation details for each serialization library
+- Cross-language performance comparisons
+- Best practices and optimization tips
+- Historical benchmark data and trends
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit pull requests or open issues for:
@@ -538,6 +723,18 @@ Contributions are welcome! Please feel free to submit pull requests or open issu
 - New test scenarios
 - Performance improvements
 - Documentation enhancements
+- GitHub Actions workflow improvements
+
+### Contribution Guidelines
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes
+4. Run benchmarks locally to verify
+5. Update documentation if needed
+6. Commit your changes (`git commit -m 'Add amazing feature'`)
+7. Push to the branch (`git push origin feature/amazing-feature`)
+8. Open a Pull Request
 
 ## Additional Resources
 
